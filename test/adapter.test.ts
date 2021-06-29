@@ -8,6 +8,12 @@ async function testGetPolicy(e: Enforcer, res: string[][]) {
     expect(Util.array2DEquals(res, myRes)).toBe(true);
 }
 
+async function testGetFilteredPolicy(e: Enforcer, res: string[]) {
+    const filtered = await e.getFilteredNamedPolicy('p', 0, 'alice');
+    const myRes = filtered[0];
+
+    expect(Util.arrayEquals(res, myRes)).toBe(true);
+}
 
 test('test Adapter', async () => {
     const redisAdapter = new NodeRedisAdapter({host: "127.0.0.1", port: 6379})
@@ -45,8 +51,8 @@ test('test Adapter', async () => {
         ['data2_admin', 'data2', 'write'],
     ]);
 
-    // await redisAdapter.loadFilteredPolicy(e.getModel(), {ptype: 'p', v0: 'alice'});
-    // await testGetFilteredPolicy(e, ['alice', 'data1', 'read']);
+    await redisAdapter.loadFilteredPolicy(e.getModel(), {"p": ['alice']});
+    await testGetFilteredPolicy(e, ['alice', 'data1', 'read']);
 
     // Add policy to DB
     await redisAdapter.addPolicy('', 'p', ['role', 'res', 'action']);
@@ -70,5 +76,13 @@ test('test Adapter', async () => {
         ['bob', 'data2', 'write'],
         ['data2_admin', 'data2', 'read'],
         ['data2_admin', 'data2', 'write'],
+    ]);
+
+    await redisAdapter.removeFilteredPolicy('', 'p', 0, 'data2_admin');
+    e = new Enforcer();
+    await e.initWithAdapter('examples/rbac_model.conf', redisAdapter);
+    await testGetPolicy(e, [
+        ['alice', 'data1', 'read'],
+        ['bob', 'data2', 'write'],
     ]);
 }, 30 * 1000)
