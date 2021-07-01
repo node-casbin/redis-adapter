@@ -1,14 +1,17 @@
-import { Helper, Model, FilteredAdapter } from 'casbin'
+import {Helper, Model, FilteredAdapter} from 'casbin'
 import * as redis from 'redis'
-import { promisify } from 'util'
 
-interface IConnectionOptions {
+export interface IConnectionOptions {
     host: string
     port: number
 }
 
+export interface Filters {
+    [ptype: string]: string[]
+}
+
 class Line {
-    p_type: string = ''
+    ptype: string = ''
     v0: string = ''
     v1: string = ''
     v2: string = ''
@@ -17,14 +20,26 @@ class Line {
     v5: string = ''
 }
 
+// noinspection FallThroughInSwitchStatementJS
 export class NodeRedisAdapter implements FilteredAdapter {
 
-    private readonly redisInstance 
-    private policies: any
+    private readonly redisInstance
+    private policies: Line[]
     private filtered = false
+
+    constructor(options: IConnectionOptions) {
+        this.redisInstance = redis.createClient(
+            {
+                ...options,
+                ...this.deliveredOptions
+            }
+        )
+    }
+
     public isFiltered(): boolean {
         return this.filtered
     }
+
     private deliveredOptions = {
         retry_strategy(options: any) {
             if (options.error && options.error.code === 'ECONNREFUSED') {
@@ -47,92 +62,85 @@ export class NodeRedisAdapter implements FilteredAdapter {
 
     savePolicyLine(ptype: any, rule: any) {
         const line = new Line()
-        line.p_type = ptype
-        if (rule.length > 0) {
-            line.v0 = rule[0]
-        }
-        if (rule.length > 1) {
-            line.v1 = rule[1]
-        }
-        if (rule.length > 2) {
-            line.v2 = rule[2]
-        }
-        if (rule.length > 3) {
-            line.v3 = rule[3]
-        }
-        if (rule.length > 4) {
-            line.v4 = rule[4]
-        }
-        if (rule.length > 5) {
-            line.v5 = rule[5]
+        line.ptype = ptype
+        switch (rule.length) {
+            case 6:
+                line.v5 = rule[5]
+            case 5:
+                line.v4 = rule[4]
+            case 4:
+                line.v3 = rule[3]
+            case 3:
+                line.v2 = rule[2]
+            case 2:
+                line.v1 = rule[1]
+            case 1:
+                line.v0 = rule[0]
+                break;
+            default:
+                throw new Error('Rule should not be empty or have more than 6 arguments.');
         }
         return line
     }
 
     loadPolicyLine(line: any, model: any) {
-        console.log("Load policies line called")
-        let lineText = line.p_type
-        if (line.v0) {
-            lineText += ", " + line.v0
-        }
-        if (line.v1) {
-            lineText += ", " + line.v1
-        }
-        if (line.v2) {
-            lineText += ", " + line.v2
-        }
-        if (line.v3) {
-            lineText += ", " + line.v3
-        }
-        if (line.v4) {
-            lineText += ", " + line.v4
-        }
-        if (line.v5) {
-            lineText += ", " + line.v5
-        }
+        //console.log("Load policies line called")
+        const lineText =
+            line.ptype +
+            ', ' +
+            [line.v0, line.v1, line.v2, line.v3, line.v4, line.v5]
+                .filter((n) => n)
+                .join(', ');
+        // console.log(lineText)
         Helper.loadPolicyLine(lineText, model)
     }
 
-    storePolicies(policies: object) {
+    storePolicies(policies: Line[]): Promise<void> {
         return new Promise((resolve, reject) => {
-            console.log({ r: this.redisInstance })
             this.redisInstance.del('policies')
-            this.redisInstance.set('policies', JSON.stringify(policies), (err: any, reply: any) => {
+            this.redisInstance.set('policies', JSON.stringify(policies), (err: (Error | null)) => {
                 if (err) {
                     reject(err)
                 } else {
-                    resolve(reply)
+                    resolve()
                 }
             })
         })
     }
 
-    reducePolicies(policies: any, p_type: string, rule: any) {
-        let i = rule.length
-        let policyIndex = policies.fieldIndex((policy: any) => {
-            let flag = false
-            flag = policy.p_type === p_type ? true : false
-            flag = i > 5 && policy.v5 === rule[5] ? true : false
-            flag = i > 4 && policy.v5 === rule[4] ? true : false
-            flag = i > 3 && policy.v5 === rule[3] ? true : false
-            flag = i > 2 && policy.v5 === rule[2] ? true : false
-            flag = i > 1 && policy.v5 === rule[1] ? true : false
-            return flag
+    public async loadFilteredPolicy(model: Model, policyFilter: Filters): Promise<void> {
+        return await new Promise((resolve, reject) => {
+            this.redisInstance.get("policies", (err, policies) => {
+                if (!err) {
+                    const parsedPolicies = JSON.parse(policies!)
+                    const filteredPolicies = parsedPolicies.filter((policy: Line) => {
+                        if (!(policy.ptype in policyFilter)) {
+                            return false
+                        }
+                        const tempPolicy = [policy.v0, policy.v1, policy.v2, policy.v3, policy.v4, policy.v5]
+                        const tempFilter = policyFilter[policy.ptype]
+                        if (tempFilter.length > tempPolicy.length) {
+                            return false
+                        }
+                        for (let i = 0; i < tempFilter.length; i++) {
+                            if (!tempFilter[i]) {
+                                continue
+                            }
+                            if (tempPolicy[i] !== tempFilter[i]) {
+                                return false
+                            }
+                        }
+                        return true
+                    })
+                    filteredPolicies.forEach((policy: any) => {
+                        this.loadPolicyLine(policy, model)
+                    })
+                    resolve()
+                } else {
+                    reject(err)
+                }
+            })
         })
-        if (policyIndex !== -1) {
-            return policies.splice(policyIndex, 1)
-        }
-        return []
-    }
-
-
-    constructor(options: IConnectionOptions) {
-        this.redisInstance = redis.createClient(
-            {
-                ...options,
-                ...this.deliveredOptions
-            }
-        )
     }
 
 
@@ -143,64 +151,46 @@ export class NodeRedisAdapter implements FilteredAdapter {
     }
 
     // Adapter Methods
-    
-    public async loadPolicy(model: any) {
-        this.redisInstance.get("policies", (err, policies: any) => {
-            console.log("Policies: \n", policies)
-            if (!err) {
-                policies = JSON.parse(policies)
-                this.policies = policies // for adding and removing policies methods
-                console.log(policies)
-                policies.forEach((policy: any, index: any) => {
-                    this.loadPolicyLine(policy, model)
-                })
-            } else {
-                return err
-            }
-        })
-    }
 
-    public async loadFilteredPolicy(model: Model, filter: object): Promise<void> {
-        let key = filter['haskey']
+    public async loadPolicy(model: Model): Promise<void> {
         return await new Promise((resolve, reject) => {
-            this.redisInstance.hgetall(key, (err, policies) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve(err)
-                    var AdapterRef = this
-                    console.log("Policies : ", policies)
-                    policies = JSON.parse(policies)
-                    this.policies = policies
-                    console.log(policies)
-                    policies.forEach((policy, index) => {
-                        AdapterRef.loadPolicyLine(policy, model)
+            this.redisInstance.get("policies", (err, policies) => {
+                if (!err) {
+                    const parsedPolicies = JSON.parse(policies!)
+                    this.policies = parsedPolicies // for adding and removing policies methods
+                    parsedPolicies.forEach((policy: any) => {
+                        this.loadPolicyLine(policy, model)
                     })
-                    console.log("Filtered Policies are loaded")
-                    this.filtered = true
+                    resolve()
+                } else {
+                    reject(err)
                 }
             })
         })
+
     }
 
     public async savePolicy(model: Model): Promise<boolean> {
 
-        const policyRuleAST = model.model.get("p")
-        const groupingPolicyAST = model.model.get("g")
-        let policies = []
+        const policyRuleAST = model.model.get("p")!
+        const groupingPolicyAST = model.model.get("g")!
+        let policies: Line[] = []
 
-        for (const [p_type, ast] of Object.entries(policyRuleAST)) {
-            for (const rule of ast.policy) {
-                const line = this.savePolicyLine(p_type, rule)
-                policies.push(line)
+        //console.log(policyRuleAST)
+
+        for (const astMap of [policyRuleAST, groupingPolicyAST]) {
+            for (const [ptype, ast] of astMap) {
+                for (const rule of ast.policy) {
+                    const line = this.savePolicyLine(ptype, rule)
+                    policies.push(line)
+                }
             }
         }
-    
+
 
         return new Promise((resolve, reject) => {
-            console.log({r: this.redisInstance})
             this.redisInstance.del('policies')
-            this.redisInstance.set('policies', JSON.stringify(policies), (err, reply) => {
+            this.redisInstance.set('policies', JSON.stringify(policies), (err: any) => {
                 if (err) {
                     reject(err)
                 } else {
@@ -210,26 +200,68 @@ export class NodeRedisAdapter implements FilteredAdapter {
         })
     }
 
-    async addPolicy(sec, p_type, rule) {
-        const line = this.savePolicyLine(p_type, rule)
+    async addPolicy(sec: string, ptype: string, rule: any) {
+        const line = this.savePolicyLine(ptype, rule)
         this.policies.push(line)
-        this.storePolicies(this.policies)
+        await this.storePolicies(this.policies)
         // resave the policies
     }
 
-    async removePolicy(sec: any, p_type: any, rule: any) {
-        let result = this.reducePolicies(this.policies, p_type, rule)
-        // modified policies
-        if (result.length) {
-            this.policies = result
-            // store in redis
-            this.storePolicies(this.policies)
-        } else {
-            throw new Error("No policy error")
-        }
+    async removePolicy(sec: string, ptype: string, rule: string[]): Promise<void> {
+        const filteredPolicies = this.policies.filter((policy) => {
+            let flag = true;
+            flag &&= ptype == policy.ptype;
+            if (rule.length > 0) {
+                flag &&= rule[0] == policy.v0;
+            }
+            if (rule.length > 1) {
+                flag &&= rule[1] == policy.v1;
+            }
+            if (rule.length > 2) {
+                flag &&= rule[2] == policy.v2;
+            }
+            if (rule.length > 3) {
+                flag &&= rule[3] == policy.v3;
+            }
+            if (rule.length > 4) {
+                flag &&= rule[4] == policy.v4;
+            }
+            if (rule.length > 5) {
+                flag &&= rule[5] == policy.v5;
+            }
+            return !flag
+        })
+        this.policies = filteredPolicies;
+        return await this.storePolicies(filteredPolicies);
     }
 
-    public async removeFilteredPolicy(sec: string, p_type: string, fieldIndex: number, ...fieldValues: string[]) {
-        throw new Error("Method not implemented")
+    public async removeFilteredPolicy(sec: string, ptype: string, fieldIndex: number, ...fieldValues: string[]): Promise<void> {
+        let rule = new Array<string>(fieldIndex).fill("")
+        rule.push(...fieldValues)
+        const filteredPolicies = this.policies.filter((policy) => {
+            let flag = true;
+            flag &&= ptype == policy.ptype;
+            if (rule.length > 0 && rule[0]) {
+                flag &&= rule[0] == policy.v0;
+            }
+            if (rule.length > 1 && rule[1]) {
+                flag &&= rule[1] == policy.v1;
+            }
+            if (rule.length > 2 && rule[2]) {
+                flag &&= rule[2] == policy.v2;
+            }
+            if (rule.length > 3 && rule[3]) {
+                flag &&= rule[3] == policy.v3;
+            }
+            if (rule.length > 4 && rule[4]) {
+                flag &&= rule[4] == policy.v4;
+            }
+            if (rule.length > 5 && rule[5]) {
+                flag &&= rule[5] == policy.v5;
+            }
+            return !flag
+        })
+        this.policies = filteredPolicies;
+        return await this.storePolicies(filteredPolicies);
     }
 }
