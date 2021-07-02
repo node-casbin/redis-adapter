@@ -27,34 +27,36 @@ export class NodeRedisAdapter implements FilteredAdapter {
     private policies: Line[]
     private filtered = false
 
-    constructor(options: IConnectionOptions) {
+    constructor(options: IConnectionOptions, redisOpts?: redis.ClientOpts) {
+        if (!redisOpts) {
+            redisOpts = {
+                retry_strategy(options: any) {
+                    if (options.error && options.error.code === 'ECONNREFUSED') {
+                        return new Error('The server refused the connection.')
+                    }
+                    if (options.total_retry_time > 1000 * 60 * 60) {
+                        return new Error('Retry time exhausted')
+                    }
+                    if (options.attempt > 10) {
+                        return undefined
+                    }
+
+                    // reconnect after
+                    return Math.min(options.attempt * 100, 300)
+                }
+            }
+        }
+
         this.redisInstance = redis.createClient(
             {
                 ...options,
-                ...this.deliveredOptions
+                ...redisOpts
             }
         )
     }
 
     public isFiltered(): boolean {
         return this.filtered
-    }
-
-    private deliveredOptions = {
-        retry_strategy(options: any) {
-            if (options.error && options.error.code === 'ECONNREFUSED') {
-                return new Error('The server refused the connection.')
-            }
-            if (options.total_retry_time > 1000 * 60 * 60) {
-                return new Error('Retry time exhausted')
-            }
-            if (options.attempt > 10) {
-                return undefined
-            }
-
-            // reconnect after
-            return Math.min(options.attempt * 100, 300)
-        }
     }
 
 
@@ -263,5 +265,11 @@ export class NodeRedisAdapter implements FilteredAdapter {
         })
         this.policies = filteredPolicies;
         return await this.storePolicies(filteredPolicies);
+    }
+
+    public async close(): Promise<void> {
+        return new Promise(resolve => {
+            this.redisInstance.quit(()=>{resolve()})
+        })
     }
 }

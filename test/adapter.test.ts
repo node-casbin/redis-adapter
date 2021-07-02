@@ -85,4 +85,6 @@ test('test Adapter', async () => {
         ['alice', 'data1', 'read'],
         ['bob', 'data2', 'write'],
     ]);
+
+    await redisAdapter.close()
 }, 30 * 1000)
