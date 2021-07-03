@@ -146,7 +146,7 @@ export class NodeRedisAdapter implements FilteredAdapter {
     }
 
 
-    static async newAdapter(options: IConnectionOptions) {
+    public static async newAdapter(options: IConnectionOptions, redisOpts?: redis.ClientOpts) {
         const adapter = new NodeRedisAdapter(options)
         await new Promise(resolve => adapter.redisInstance.on('connect', resolve))
         return adapter
@@ -269,7 +269,9 @@ export class NodeRedisAdapter implements FilteredAdapter {
 
     public async close(): Promise<void> {
         return new Promise(resolve => {
-            this.redisInstance.quit(()=>{resolve()})
+            this.redisInstance.quit(() => {
+                resolve()
+            })
         })
     }
 }

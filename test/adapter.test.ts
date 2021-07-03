@@ -16,7 +16,7 @@ async function testGetFilteredPolicy(e: Enforcer, res: string[]) {
 }
 
 test('test Adapter', async () => {
-    const redisAdapter = new NodeRedisAdapter({host: "127.0.0.1", port: 6379})
+    const redisAdapter = await NodeRedisAdapter.newAdapter({host: "127.0.0.1", port: 6379})
     let e = new Enforcer();
 
     await e.initWithFile(
