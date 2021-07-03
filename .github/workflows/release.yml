@@ -5,6 +5,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
       - name: Release
         if: github.repository == 'node-casbin/redis-adapter'
         run: npx -p semantic-release -p @semantic-release/git -p @semantic-release/changelog -p @semantic-release/commit-analyzer -p @semantic-release/release-notes-generator -p @semantic-release/release-notes-generator -p @semantic-release/changelog -p @semantic-release/git -p @semantic-release/github semantic-release
