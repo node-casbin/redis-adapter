@@ -14,6 +14,12 @@ jobs:
         with:
           node-version: 14
 
+      - name: Install Dependency
+        run: yarn install
+
+      - name: Build library
+        run: yarn run build
+
       - name: Release
         if: github.repository == 'node-casbin/redis-adapter'
         run: npx -p semantic-release -p @semantic-release/git -p @semantic-release/changelog -p @semantic-release/commit-analyzer -p @semantic-release/release-notes-generator -p @semantic-release/release-notes-generator -p @semantic-release/changelog -p @semantic-release/git -p @semantic-release/github semantic-release
