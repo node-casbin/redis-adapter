@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/node-casbin/redis-adapter/compare/v1.0.1...v1.0.2) (2022-02-21)
+
+
+### Bug Fixes
+
+* correctly build before release ([f8029b2](https://github.com/node-casbin/redis-adapter/commit/f8029b22524db966d5eebae266deae46f2da571c))
+
 ## [1.0.1](https://github.com/node-casbin/redis-adapter/compare/v1.0.0...v1.0.1) (2022-02-21)
 
 
