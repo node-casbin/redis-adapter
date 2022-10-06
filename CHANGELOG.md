@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/node-casbin/redis-adapter/compare/v1.0.2...v1.0.3) (2022-10-06)
+
+
+### Bug Fixes
+
+* **src:** Fix loading error when `policies` is empty ([7127e0c](https://github.com/node-casbin/redis-adapter/commit/7127e0c6d7f06dd13b78cc7996ebbffd1f18c398))
+
 ## [1.0.2](https://github.com/node-casbin/redis-adapter/compare/v1.0.1...v1.0.2) (2022-02-21)
 
 
