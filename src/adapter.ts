@@ -147,7 +147,7 @@ export class NodeRedisAdapter implements FilteredAdapter {
 
 
     public static async newAdapter(options: IConnectionOptions, redisOpts?: redis.ClientOpts) {
-        const adapter = new NodeRedisAdapter(options)
+        const adapter = new NodeRedisAdapter(options, redisOpts)
         await new Promise(resolve => adapter.redisInstance.on('connect', resolve))
         return adapter
     }
