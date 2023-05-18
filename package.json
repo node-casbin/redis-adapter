@@ -1,6 +1,6 @@
 {
   "name": "casbin-redis-adapter",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "lib/cjs/index.js",
   "typings": "lib/cjs/index.d.ts",
   "module": "lib/esm/index.js",

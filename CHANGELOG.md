@@ -1,3 +1,11 @@
+## [1.0.4](https://github.com/node-casbin/redis-adapter/compare/v1.0.3...v1.0.4) (2023-05-18)
+
+
+### Bug Fixes
+
+* fix CI ([15e9f7c](https://github.com/node-casbin/redis-adapter/commit/15e9f7c137883fba99dbd5960a0b119e9d76b0ec))
+* Pass redisOpts argument to constructor ([#12](https://github.com/node-casbin/redis-adapter/issues/12)) ([c9b4569](https://github.com/node-casbin/redis-adapter/commit/c9b45693f634313b8d7c17887185f4a29901c8b5))
+
 ## [1.0.3](https://github.com/node-casbin/redis-adapter/compare/v1.0.2...v1.0.3) (2022-10-06)
 
 
